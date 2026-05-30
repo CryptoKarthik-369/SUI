@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUI SMC Bot — Live Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#070a0d;--bg2:#0c1018;--bg3:#111620;--bg4:#16202e;--bg5:#1a2535;
+  --b1:#1c2838;--b2:#253347;--b3:#2e3f56;
+  --t1:#dde8f2;--t2:#7d94ad;--t3:#445566;--t4:#2a3a4a;
+  --bull:#00e5a8;--bull2:#00b880;--bull3:rgba(0,229,168,.12);
+  --bear:#ff3d5a;--bear2:#cc2e45;--bear3:rgba(255,61,90,.12);
+  --warn:#f5a623;--warn3:rgba(245,166,35,.12);
+  --info:#4a9eff;--info3:rgba(74,158,255,.1);
+  --purple:#a78bfa;--purple3:rgba(167,139,250,.1);
+  --font:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;
+  --r4:4px;--r6:6px;--r8:8px;--r12:12px;
+}
+html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--font);font-size:14px;overflow-x:hidden}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--b3);border-radius:2px}
+
+/* ── LAYOUT ── */
+.app{display:grid;grid-template-rows:auto auto 1fr;min-height:100vh}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--b1);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.tickerbar{background:var(--bg3);border-bottom:1px solid var(--b1);height:32px;overflow:hidden;display:flex;align-items:center}
+.content{display:grid;grid-template-columns:1fr 340px;gap:0;height:calc(100vh - 84px);overflow:hidden}
+.main-panel{overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.side-panel{background:var(--bg2);border-left:1px solid var(--b1);overflow-y:auto;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.logo{display:flex;align-items:center;gap:10px}
+.logo-mark{width:32px;height:32px;background:var(--bull3);border:1px solid rgba(0,229,168,.3);border-radius:var(--r6);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--bull);letter-spacing:.5px}
+.logo-text{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.logo-sub{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:1px}
+.price-center{display:flex;align-items:baseline;gap:8px}
+#topPrice{font-family:var(--mono);font-size:20px;font-weight:700;letter-spacing:-.5px;transition:color .3s}
+#topChg{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:var(--r4)}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.conn-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid var(--b2);font-size:11px;font-family:var(--mono);cursor:pointer;transition:.2s}
+.conn-pill:hover{border-color:var(--b3)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-green{background:var(--bull);animation:pulse 1.5s infinite}
+.dot-red{background:var(--bear)}
+.dot-yellow{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 currentColor}50%{opacity:.5;box-shadow:0 0 0 4px transparent}}
+.server-url{font-size:10px;font-family:var(--mono);color:var(--t3);padding:4px 8px;border:1px solid var(--b1);border-radius:var(--r4);background:var(--bg3);width:200px;outline:none;color:var(--t2)}
+.server-url:focus{border-color:var(--b3)}
+
+/* ── TICKER ── */
+.ticker-inner{display:flex;gap:28px;white-space:nowrap;animation:scroll-left 30s linear infinite;padding:0 20px}
+.ticker-inner:hover{animation-play-state:paused}
+.t-item{display:flex;gap:6px;align-items:center;font-size:11px;font-family:var(--mono)}
+.t-label{color:var(--t3)}
+@keyframes scroll-left{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--b1);border-radius:var(--r8);padding:12px}
+.card-title{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);font-family:var(--mono);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card.bull-card{border-color:rgba(0,229,168,.25);background:linear-gradient(135deg,var(--bg2) 80%,rgba(0,229,168,.03))}
+.card.bear-card{border-color:rgba(255,61,90,.25);background:linear-gradient(135deg,var(--bg2) 80%,rgba(255,61,90,.03))}
+.card.warn-card{border-color:rgba(245,166,35,.2);background:linear-gradient(135deg,var(--bg2) 80%,rgba(245,166,35,.02))}
+
+/* ── TF GRID ── */
+.tf-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.tf-card{background:var(--bg3);border:1px solid var(--b1);border-radius:var(--r8);padding:10px 12px}
+.tf-card.tf-bull{border-color:rgba(0,229,168,.3)}
+.tf-card.tf-bear{border-color:rgba(255,61,90,.3)}
+.tf-card.tf-warn{border-color:rgba(245,166,35,.25)}
+.tf-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.tf-label{font-size:9px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--t3)}
+.tf-badge{font-size:9px;font-family:var(--mono);padding:2px 7px;border-radius:20px}
+.b-bull{background:var(--bull3);color:var(--bull)}
+.b-bear{background:var(--bear3);color:var(--bear)}
+.b-warn{background:var(--warn3);color:var(--warn)}
+.b-info{background:var(--info3);color:var(--info)}
+.b-purple{background:var(--purple3);color:var(--purple)}
+.tf-dir{font-size:15px;font-weight:700;margin-bottom:8px;letter-spacing:-.3px}
+.tf-rows{display:flex;flex-direction:column;gap:3px}
+.tf-row{display:flex;justify-content:space-between;align-items:center;padding:3px 6px;border-radius:4px;background:var(--bg4);font-size:11px}
+.tf-row-label{color:var(--t3);font-family:var(--mono)}
+.tf-row-val{font-family:var(--mono);font-weight:500}
+
+/* ── SIGNAL CARD ── */
+.checklist{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.chk{background:var(--bg3);border:1px solid var(--b1);border-radius:var(--r6);padding:7px 9px}
+.chk-label{font-size:9px;color:var(--t3);font-family:var(--mono);letter-spacing:.8px;text-transform:uppercase;margin-bottom:3px}
+.chk-val{font-size:11px;font-weight:600;font-family:var(--mono)}
+.chk.pass{border-color:rgba(0,229,168,.3)}
+.chk.fail{border-color:rgba(255,61,90,.3)}
+.chk.pend{border-color:rgba(245,166,35,.25)}
+.alert-banner{border-radius:var(--r6);padding:10px 14px;border:1px solid;display:flex;align-items:center;gap:12px;transition:.4s}
+.ab-bull{background:var(--bull3);border-color:rgba(0,229,168,.35)}
+.ab-bear{background:var(--bear3);border-color:rgba(255,61,90,.35)}
+.ab-warn{background:var(--warn3);border-color:rgba(245,166,35,.25)}
+.ab-icon{font-size:22px;flex-shrink:0}
+.ab-body{flex:1;min-width:0}
+.ab-head{font-size:12px;font-weight:600;margin-bottom:2px}
+.ab-sub{font-size:10px;color:var(--t2);font-family:var(--mono)}
+.ab-score{text-align:right;flex-shrink:0}
+.score-label{font-size:9px;color:var(--t3);font-family:var(--mono)}
+.score-val{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1}
+.tpsl-row{display:flex;gap:8px;margin-top:8px}
+.tpsl-box{flex:1;border-radius:var(--r6);padding:8px 10px;border:1px solid}
+.tp-bx{background:rgba(0,229,168,.06);border-color:rgba(0,229,168,.2)}
+.sl-bx{background:rgba(255,61,90,.06);border-color:rgba(255,61,90,.2)}
+.tpsl-inner{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.tpsl-k{font-size:9px;color:var(--t2);font-family:var(--mono)}
+.tpsl-v{font-size:11px;font-weight:600;font-family:var(--mono)}
+
+/* ── CHART ── */
+.chart-wrap{background:var(--bg2);border:1px solid var(--b1);border-radius:var(--r8);padding:12px}
+.chart-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.tf-tabs{display:flex;gap:4px}
+.tf-tab{font-size:10px;font-family:var(--mono);padding:3px 10px;border-radius:var(--r4);border:1px solid var(--b2);cursor:pointer;color:var(--t2);background:transparent;transition:.15s;letter-spacing:.5px}
+.tf-tab.on{background:var(--b3);color:var(--t1);border-color:var(--b3)}
+.tf-tab:hover:not(.on){border-color:var(--b3)}
+
+/* ── STATS ROW ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat-box{background:var(--bg3);border:1px solid var(--b1);border-radius:var(--r8);padding:10px 12px}
+.stat-lbl{font-size:9px;color:var(--t3);font-family:var(--mono);letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
+.stat-num{font-size:18px;font-weight:700;font-family:var(--mono);line-height:1}
+.stat-sub{font-size:9px;color:var(--t2);font-family:var(--mono);margin-top:3px}
+
+/* ── OB TABLE ── */
+.ob-list{display:flex;flex-direction:column;gap:3px}
+.ob-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:4px;background:var(--bg3);border-left:2px solid transparent}
+.ob-row.ob-bull{border-left-color:var(--bull)}
+.ob-row.ob-bear{border-left-color:var(--bear)}
+.ob-row.ob-fvg{border-left-color:rgba(0,229,168,.4)}
+.ob-row.ob-eq{border-left-color:var(--info)}
+.ob-row.ob-purple{border-left-color:var(--purple)}
+.ob-type{font-size:9px;color:var(--t2);font-family:var(--mono);width:70px;flex-shrink:0}
+.ob-price{font-family:var(--mono);font-size:11px;font-weight:500;flex:1}
+.ob-badge{font-size:8px;font-family:var(--mono);padding:2px 5px;border-radius:3px;flex-shrink:0}
+
+/* ── SIDE PANEL ── */
+.side-hdr{padding:12px 14px;border-bottom:1px solid var(--b1);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);font-family:var(--mono);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg2);z-index:10}
+.alert-feed{flex:1;overflow-y:auto;padding:8px 0}
+.alert-item{padding:10px 14px;border-bottom:1px solid var(--b1);cursor:default;transition:.15s}
+.alert-item:hover{background:var(--bg3)}
+.alert-item-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.alert-action{font-size:11px;font-weight:600;font-family:var(--mono)}
+.alert-time{font-size:9px;color:var(--t3);font-family:var(--mono)}
+.alert-price{font-size:13px;font-family:var(--mono);font-weight:600;margin-bottom:3px}
+.alert-meta{font-size:9px;color:var(--t2);font-family:var(--mono);display:flex;gap:8px;flex-wrap:wrap}
+.alert-item.a-long .alert-action{color:var(--bull)}
+.alert-item.a-short .alert-action{color:var(--bear)}
+.alert-item.a-watch .alert-action{color:var(--warn)}
+.alert-item.a-info .alert-action{color:var(--info)}
+.alert-item.new-alert{animation:flash-in .5s ease}
+@keyframes flash-in{0%{background:rgba(0,229,168,.08)}100%{background:transparent}}
+.empty-feed{padding:30px 20px;text-align:center;color:var(--t3);font-family:var(--mono);font-size:11px;line-height:1.8}
+
+/* ── MODALS / TOAST ── */
+.toast-container{position:fixed;top:60px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--bg3);border:1px solid var(--b2);border-radius:var(--r8);padding:10px 14px;min-width:260px;max-width:320px;pointer-events:auto;animation:slide-in .3s ease;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast.t-bull{border-left:3px solid var(--bull)}
+.toast.t-bear{border-left:3px solid var(--bear)}
+.toast.t-warn{border-left:3px solid var(--warn)}
+.toast-head{font-size:11px;font-weight:600;margin-bottom:3px}
+.toast-body{font-size:10px;color:var(--t2);font-family:var(--mono)}
+@keyframes slide-in{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slide-out{from{opacity:1}to{transform:translateX(20px);opacity:0}}
+
+/* ── SETUP MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-box{background:var(--bg2);border:1px solid var(--b2);border-radius:var(--r12);padding:24px;width:480px;max-width:95vw}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.modal-sub{font-size:12px;color:var(--t2);margin-bottom:20px;font-family:var(--mono);line-height:1.6}
+.form-row{margin-bottom:14px}
+.form-label{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--t3);font-family:var(--mono);margin-bottom:5px;display:block}
+.form-input{width:100%;background:var(--bg3);border:1px solid var(--b2);border-radius:var(--r6);padding:8px 12px;color:var(--t1);font-family:var(--mono);font-size:12px;outline:none}
+.form-input:focus{border-color:var(--b3)}
+.btn-row{display:flex;gap:8px;margin-top:18px}
+.btn{padding:8px 18px;border-radius:var(--r6);border:none;cursor:pointer;font-family:var(--font);font-size:12px;font-weight:600;transition:.2s}
+.btn-primary{background:var(--bull);color:#000}
+.btn-primary:hover{background:var(--bull2)}
+.btn-ghost{background:transparent;color:var(--t2);border:1px solid var(--b2)}
+.btn-ghost:hover{border-color:var(--b3);color:var(--t1)}
+.code-block{background:var(--bg4);border:1px solid var(--b1);border-radius:var(--r6);padding:10px 12px;font-family:var(--mono);font-size:10px;color:var(--t2);margin-top:6px;line-height:1.8;word-break:break-all}
+.code-block .hl{color:var(--bull)}
+.hidden{display:none!important}
+
+/* ── BLINK ── */
+.blink{animation:bk .7s step-end infinite}
+@keyframes bk{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .content{grid-template-columns:1fr;height:auto}
+  .side-panel{height:400px;border-left:none;border-top:1px solid var(--b1)}
+  .tf-grid{grid-template-columns:1fr 1fr}
+  .stats-row{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .tf-grid{grid-template-columns:1fr}
+  .checklist{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal-box">
+    <div class="modal-title">⚙️ Connect to Bot Server</div>
+    <div class="modal-sub">Enter your webhook server WebSocket URL to receive live TradingView alerts.<br>Run <span style="color:var(--bull)">node server.js</span> locally or deploy to Railway/Render.</div>
+    <div class="form-row">
+      <label class="form-label">WebSocket Server URL</label>
+      <input class="form-input" id="wsUrlInput" type="text" value="ws://localhost:3001/ws" placeholder="ws://your-server.com/ws">
+    </div>
+    <div class="form-row">
+      <label class="form-label">TradingView Webhook URL (copy to TV alerts)</label>
+      <div class="code-block" id="tvWebhookDisplay">http://localhost:3001/webhook?secret=<span class="hl">sui_smc_secret_2024</span></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="connectServer()">Connect</button>
+      <button class="btn btn-ghost" onclick="demoMode()">Demo Mode (No Server)</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div class="app">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-mark">SUI</div>
+      <div>
+        <div class="logo-text">SMC Bot <span style="color:var(--t3);font-weight:400">/</span> <span style="color:var(--bull)">USDT</span></div>
+        <div class="logo-sub">SMART MONEY CONCEPTS · LIVE MONITOR</div>
+      </div>
+    </div>
+    <div class="price-center">
+      <span id="topPrice" style="color:var(--t1)">—</span>
+      <span id="topChg" class="b-info">—</span>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--t3)" id="topVol">VOL —</span>
+    </div>
+    <div class="topbar-right">
+      <input class="server-url" id="serverUrlBar" type="text" placeholder="ws://localhost:3001/ws" title="WebSocket URL">
+      <div class="conn-pill" id="connPill" onclick="toggleConn()">
+        <div class="dot dot-red" id="connDot"></div>
+        <span id="connText" style="color:var(--t2)">OFFLINE</span>
+      </div>
+      <div class="conn-pill" onclick="document.getElementById('setupModal').classList.remove('hidden')" style="color:var(--t2)">⚙</div>
+    </div>
+  </div>
+
+  <!-- TICKER STRIP -->
+  <div class="tickerbar">
+    <div class="ticker-inner" id="tickerContent">
+      <div class="t-item"><span class="t-label">24H VOL</span><span style="color:var(--warn)" id="tk-vol">—</span></div>
+      <div class="t-item"><span class="t-label">24H HIGH</span><span style="color:var(--bull)" id="tk-high">—</span></div>
+      <div class="t-item"><span class="t-label">24H LOW</span><span style="color:var(--bear)" id="tk-low">—</span></div>
+      <div class="t-item"><span class="t-label">FUNDING</span><span style="color:var(--bull)">+0.012%</span></div>
+      <div class="t-item"><span class="t-label">MARKET CAP</span><span>$11.8B</span></div>
+      <div class="t-item"><span class="t-label">1D BIAS</span><span id="tk-bias" style="color:var(--t2)">—</span></div>
+      <div class="t-item"><span class="t-label">1H ZONE</span><span id="tk-zone" style="color:var(--t2)">—</span></div>
+      <div class="t-item"><span class="t-label">5M SIGNAL</span><span id="tk-sig" style="color:var(--warn)">WATCHING</span></div>
+      <div class="t-item"><span class="t-label">ALERTS TODAY</span><span id="tk-alerts" style="color:var(--purple)">0</span></div>
+      <div class="t-item"><span class="t-label">CLIENTS</span><span id="tk-clients">1</span></div>
+      <!-- duplicate for seamless loop -->
+      <div class="t-item"><span class="t-label">24H VOL</span><span style="color:var(--warn)" id="tk-vol2">—</span></div>
+      <div class="t-item"><span class="t-label">24H HIGH</span><span style="color:var(--bull)">—</span></div>
+      <div class="t-item"><span class="t-label">24H LOW</span><span style="color:var(--bear)">—</span></div>
+      <div class="t-item"><span class="t-label">FUNDING</span><span style="color:var(--bull)">+0.012%</span></div>
+      <div class="t-item"><span class="t-label">MARKET CAP</span><span>$11.8B</span></div>
+      <div class="t-item"><span class="t-label">1D BIAS</span><span style="color:var(--t2)" id="tk-bias2">—</span></div>
+      <div class="t-item"><span class="t-label">1H ZONE</span><span style="color:var(--t2)">—</span></div>
+      <div class="t-item"><span class="t-label">5M SIGNAL</span><span style="color:var(--warn)">WATCHING</span></div>
+      <div class="t-item"><span class="t-label">ALERTS TODAY</span><span style="color:var(--purple)" id="tk-alerts2">0</span></div>
+      <div class="t-item"><span class="t-label">CLIENTS</span><span>1</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+
+    <!-- LEFT: MAIN PANEL -->
+    <div class="main-panel">
+
+      <!-- TF ANALYSIS GRID -->
+      <div class="tf-grid" id="tfGrid">
+        <!-- 1D -->
+        <div class="tf-card tf-bull" id="tf1D">
+          <div class="tf-head">
+            <span class="tf-label">1D · Direction</span>
+            <span class="tf-badge b-bull" id="tf1D-badge">CONFIRMED</span>
+          </div>
+          <div class="tf-dir" style="color:var(--bull)" id="tf1D-dir">▲ BULLISH</div>
+          <div class="tf-rows" id="tf1D-rows">
+            <div class="tf-row"><span class="tf-row-label">Structure</span><span class="tf-row-val" style="color:var(--bull)">HH / HL</span></div>
+            <div class="tf-row"><span class="tf-row-label">BOS Level</span><span class="tf-row-val" style="color:var(--info)">$3.780</span></div>
+            <div class="tf-row"><span class="tf-row-label">HTF OB</span><span class="tf-row-val" style="color:var(--purple)">$3.580–3.650</span></div>
+            <div class="tf-row"><span class="tf-row-label">Premium</span><span class="tf-row-val" style="color:var(--warn)">$4.120–4.350</span></div>
+            <div class="tf-row"><span class="tf-row-label">Discount</span><span class="tf-row-val" style="color:var(--bull)">$3.420–3.580</span></div>
+            <div class="tf-row"><span class="tf-row-label">Bias</span><span class="tf-row-val" style="color:var(--bull)">LONG ↑</span></div>
+          </div>
+        </div>
+        <!-- 1H -->
+        <div class="tf-card tf-bull" id="tf1H">
+          <div class="tf-head">
+            <span class="tf-label">1H · Key Levels</span>
+            <span class="tf-badge b-bull" id="tf1H-badge">ALIGNED</span>
+          </div>
+          <div class="tf-dir" style="color:var(--bull)" id="tf1H-dir">▲ BULLISH</div>
+          <div class="tf-rows" id="tf1H-rows">
+            <div class="tf-row"><span class="tf-row-label">Demand OB</span><span class="tf-row-val" style="color:var(--bull)">$3.780–3.820</span></div>
+            <div class="tf-row"><span class="tf-row-label">Supply OB</span><span class="tf-row-val" style="color:var(--bear)">$4.050–4.090</span></div>
+            <div class="tf-row"><span class="tf-row-label">FVG Bull</span><span class="tf-row-val" style="color:var(--bull)">$3.800–3.840</span></div>
+            <div class="tf-row"><span class="tf-row-label">Prev High</span><span class="tf-row-val" style="color:var(--warn)">$3.918</span></div>
+            <div class="tf-row"><span class="tf-row-label">EQL</span><span class="tf-row-val" style="color:var(--info)">$3.760</span></div>
+            <div class="tf-row"><span class="tf-row-label">POI Zone</span><span class="tf-row-val" style="color:var(--purple)">$3.790–3.830</span></div>
+          </div>
+        </div>
+        <!-- 5M -->
+        <div class="tf-card tf-warn" id="tf5M">
+          <div class="tf-head">
+            <span class="tf-label">5M · Entry</span>
+            <span class="tf-badge b-warn blink" id="tf5M-badge">WATCHING</span>
+          </div>
+          <div class="tf-dir" style="color:var(--warn)" id="tf5M-dir">→ AWAITING</div>
+          <div class="tf-rows" id="tf5M-rows">
+            <div class="tf-row"><span class="tf-row-label">OB Entry</span><span class="tf-row-val" style="color:var(--warn)">$3.798–3.808</span></div>
+            <div class="tf-row"><span class="tf-row-label">Trigger</span><span class="tf-row-val" style="color:var(--warn)">CHoCH $3.815</span></div>
+            <div class="tf-row"><span class="tf-row-label">5M FVG</span><span class="tf-row-val" style="color:var(--info)">$3.802–3.812</span></div>
+            <div class="tf-row"><span class="tf-row-label">LTF Low</span><span class="tf-row-val" style="color:var(--bear)">$3.792</span></div>
+            <div class="tf-row"><span class="tf-row-label">MSS</span><span class="tf-row-val blink" style="color:var(--warn)" id="mssVal">PENDING</span></div>
+            <div class="tf-row"><span class="tf-row-label">Score</span><span class="tf-row-val" style="color:var(--warn)" id="tf5M-score">3/6</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART -->
+      <div class="chart-wrap">
+        <div class="chart-hdr">
+          <span style="font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--t3);font-family:var(--mono)">Price Chart · SMC Levels</span>
+          <div class="tf-tabs">
+            <button class="tf-tab on" onclick="switchChart(this,'5M')">5M</button>
+            <button class="tf-tab" onclick="switchChart(this,'1H')">1H</button>
+            <button class="tf-tab" onclick="switchChart(this,'1D')">1D</button>
+          </div>
+        </div>
+        <div style="position:relative;height:200px">
+          <canvas id="priceChart" role="img" aria-label="SUI price chart with SMC order block and FVG levels">SUI price chart</canvas>
+        </div>
+      </div>
+
+      <!-- SIGNAL ENGINE -->
+      <div class="card" id="sigCard">
+        <div class="card-title">
+          <span>Signal Engine · SMC Checklist</span>
+          <span id="sigStatus" style="color:var(--warn);font-size:9px;font-family:var(--mono)">⟳ MONITORING</span>
+        </div>
+        <div class="checklist">
+          <div class="chk pass" id="chk-1d"><div class="chk-label">1D Bias</div><div class="chk-val" style="color:var(--bull)">✓ Bullish</div></div>
+          <div class="chk pass" id="chk-1h"><div class="chk-label">1H POI</div><div class="chk-val" style="color:var(--bull)">✓ Demand OB</div></div>
+          <div class="chk pend" id="chk-5m"><div class="chk-label">5M CHoCH</div><div class="chk-val" style="color:var(--warn)">⟳ Pending</div></div>
+          <div class="chk pass" id="chk-fvg"><div class="chk-label">FVG Fill</div><div class="chk-val" style="color:var(--bull)">✓ In Zone</div></div>
+          <div class="chk pass" id="chk-ssl"><div class="chk-label">SSL Swept</div><div class="chk-val" style="color:var(--bull)">✓ $3.792</div></div>
+          <div class="chk pend" id="chk-mss"><div class="chk-label">MSS Confirm</div><div class="chk-val" style="color:var(--warn)">⟳ Watching</div></div>
+        </div>
+        <div class="alert-banner ab-warn" id="alertBanner">
+          <div class="ab-icon">⚡</div>
+          <div class="ab-body">
+            <div class="ab-head" id="alertHead">NEAR ENTRY — Awaiting 5M CHoCH Confirmation</div>
+            <div class="ab-sub" id="alertSub">Price tapping 1H Demand OB · 5/6 conditions met · TV alert set $3.815</div>
+          </div>
+          <div class="ab-score"><div class="score-label">SCORE</div><div class="score-val" id="scoreVal" style="color:var(--warn)">83%</div></div>
+        </div>
+        <div class="tpsl-row" id="tpslRow">
+          <div class="tpsl-box tp-bx">
+            <div style="font-size:9px;color:var(--t2);font-family:var(--mono);margin-bottom:4px">TAKE PROFIT</div>
+            <div class="tpsl-inner"><span class="tpsl-k">TP1</span><span class="tpsl-v" style="color:var(--bull)" id="tp1Val">$3.918</span></div>
+            <div class="tpsl-inner"><span class="tpsl-k">TP2</span><span class="tpsl-v" style="color:var(--bull)" id="tp2Val">$4.060</span></div>
+            <div class="tpsl-inner"><span class="tpsl-k">TP3</span><span class="tpsl-v" style="color:var(--bull)" id="tp3Val">$4.200</span></div>
+          </div>
+          <div class="tpsl-box sl-bx">
+            <div style="font-size:9px;color:var(--t2);font-family:var(--mono);margin-bottom:4px">RISK MANAGEMENT</div>
+            <div class="tpsl-inner"><span class="tpsl-k">STOP</span><span class="tpsl-v" style="color:var(--bear)" id="slVal">$3.775</span></div>
+            <div class="tpsl-inner"><span class="tpsl-k">R : R</span><span class="tpsl-v" style="color:var(--warn)" id="rrVal">1 : 3.8</span></div>
+            <div class="tpsl-inner"><span class="tpsl-k">RISK</span><span class="tpsl-v" style="color:var(--info)">2%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OB + LEVELS 2-COL -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="card">
+          <div class="card-title">Order Blocks</div>
+          <div class="ob-list">
+            <div class="ob-row ob-bull"><span class="ob-type">HTF OB D1</span><span class="ob-price" style="color:var(--bull)">$3.580</span><span class="ob-badge b-bull">ACTIVE</span></div>
+            <div class="ob-row ob-bull"><span class="ob-type">OB 1H ▲</span><span class="ob-price" style="color:var(--bull)">$3.800</span><span class="ob-badge b-warn">TAPPING</span></div>
+            <div class="ob-row ob-bull"><span class="ob-type">OB 5M ▲</span><span class="ob-price" style="color:var(--bull)">$3.798</span><span class="ob-badge b-warn">ENTRY</span></div>
+            <div class="ob-row ob-bear"><span class="ob-type">OB 1H ▼</span><span class="ob-price" style="color:var(--bear)">$4.060</span><span class="ob-badge b-bull">TARGET</span></div>
+            <div class="ob-row ob-bear"><span class="ob-type">OB D1 ▼</span><span class="ob-price" style="color:var(--bear)">$4.200</span><span class="ob-badge b-info">HTF TGT</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">FVG + Liquidity</div>
+          <div class="ob-list">
+            <div class="ob-row ob-fvg"><span class="ob-type">FVG Bull 1H</span><span class="ob-price" style="color:var(--bull)">$3.800–3.840</span><span class="ob-badge b-warn">OPEN</span></div>
+            <div class="ob-row ob-fvg"><span class="ob-type">FVG Bull 5M</span><span class="ob-price" style="color:var(--bull)">$3.802–3.812</span><span class="ob-badge b-warn">ENTRY</span></div>
+            <div class="ob-row ob-eq"><span class="ob-type">BSL Above</span><span class="ob-price" style="color:var(--info)">$3.918</span><span class="ob-badge b-bull">TARGET</span></div>
+            <div class="ob-row ob-eq"><span class="ob-type">SSL Below</span><span class="ob-price" style="color:var(--bear)">$3.760</span><span class="ob-badge b-bull">ACTIVE</span></div>
+            <div class="ob-row ob-purple"><span class="ob-type">EQL</span><span class="ob-price" style="color:var(--purple)">$3.780</span><span class="ob-badge b-purple">SWEEP?</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-lbl">Today Signals</div><div class="stat-num" style="color:var(--bull)" id="st-today">0</div><div class="stat-sub">from TV alerts</div></div>
+        <div class="stat-box"><div class="stat-lbl">Total Alerts</div><div class="stat-num" style="color:var(--info)" id="st-total">0</div><div class="stat-sub">all time</div></div>
+        <div class="stat-box"><div class="stat-lbl">Long / Short</div><div class="stat-num" style="color:var(--t1)" id="st-ls">0 / 0</div><div class="stat-sub">signals fired</div></div>
+        <div class="stat-box"><div class="stat-lbl">Connection</div><div class="stat-num" id="st-conn" style="color:var(--bear);font-size:13px">OFFLINE</div><div class="stat-sub" id="st-connSub">—</div></div>
+      </div>
+
+    </div><!-- /main-panel -->
+
+    <!-- RIGHT: ALERT FEED -->
+    <div class="side-panel">
+      <div class="side-hdr">
+        <span>Live Alert Feed</span>
+        <span id="feedCount" style="color:var(--bull)">0 alerts</span>
+      </div>
+      <div class="alert-feed" id="alertFeed">
+        <div class="empty-feed" id="emptyFeed">
+          Waiting for TradingView alerts...<br><br>
+          Connect server &amp; add Pine Script<br>
+          to your SUI chart on TradingView
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-top:1px solid var(--b1)">
+        <button class="btn btn-ghost" style="width:100%;font-size:11px" onclick="fireTestAlert()">⚡ Fire Test Alert</button>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let ws = null;
+let wsUrl = 'ws://localhost:3001/ws';
+let isDemoMode = false;
+let priceChart = null;
+let currentChartTF = '5M';
+let basePrice = 3.824;
+let currentPrice = basePrice;
+let demoTimer = null;
+let alertCount = 0;
+
+// ─────────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────────
+function genPriceData(tf, n) {
+  const data = [];
+  let p = tf === '1D' ? 3.20 : tf === '1H' ? 3.62 : 3.78;
+  for (let i = 0; i < n; i++) {
+    const v = (Math.random() * 0.035 + 0.008) * (tf === '1D' ? 5 : tf === '1H' ? 2 : 1);
+    const d = Math.random() > 0.44 ? 1 : -1;
+    p += d * v;
+    data.push(parseFloat(p.toFixed(4)));
+  }
+  if (tf === '5M') data[data.length - 1] = currentPrice;
+  return data;
+}
+
+function buildChart(tf) {
+  const n = tf === '1D' ? 22 : tf === '1H' ? 24 : 32;
+  const data = genPriceData(tf, n);
+  const labels = data.map((_, i) => tf === '5M' ? `${i*5}m` : tf === '1H' ? `${i}h` : `D${i+1}`);
+  const colors = data.map((v, i) => i === 0 ? '#4a9eff' : v >= data[i-1] ? '#00e5a8' : '#ff3d5a');
+
+  const obLevel = tf === '1H' ? 3.800 : tf === '5M' ? 3.798 : 3.580;
+  const fvgLevel = tf === '5M' ? 3.807 : tf === '1H' ? 3.820 : null;
+
+  if (priceChart) priceChart.destroy();
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  priceChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderColor: colors, borderWidth: 1, barThickness: tf === '1D' ? 14 : 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => '$' + c.parsed.y.toFixed(4) } },
+        annotation: {
+          annotations: {
+            obLine: { type: 'line', yMin: obLevel, yMax: obLevel, borderColor: 'rgba(0,229,168,.6)', borderWidth: 1, borderDash: [4, 3] },
+            ...(fvgLevel ? { fvgBox: { type: 'box', yMin: fvgLevel - 0.005, yMax: fvgLevel + 0.005, backgroundColor: 'rgba(0,229,168,.06)', borderColor: 'rgba(0,229,168,.2)', borderWidth: 1 } } : {})
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#445566', font: { size: 9, family: 'JetBrains Mono' }, maxTicksLimit: 10 }, grid: { color: 'rgba(255,255,255,.03)' } },
+        y: { ticks: { color: '#445566', font: { size: 9, family: 'JetBrains Mono' }, callback: v => '$' + v.toFixed(3) }, grid: { color: 'rgba(255,255,255,.03)' }, position: 'right' }
+      }
+    }
+  });
+}
+
+function switchChart(el, tf) {
+  document.querySelectorAll('.tf-tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  currentChartTF = tf;
+  buildChart(tf);
+}
+
+// ─────────────────────────────────────────────
+// PRICE UPDATE
+// ─────────────────────────────────────────────
+function updatePrice(price) {
+  currentPrice = parseFloat(price) || currentPrice;
+  const pEl = document.getElementById('topPrice');
+  const cEl = document.getElementById('topChg');
+  pEl.textContent = '$' + currentPrice.toFixed(4);
+  const pct = ((currentPrice - 3.7494) / 3.7494 * 100);
+  cEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+  cEl.className = pct >= 0 ? 'b-bull' : 'b-bear';
+  pEl.style.color = pct >= 0 ? 'var(--bull)' : 'var(--bear)';
+
+  // Update signal banner based on price
+  const banner = document.getElementById('alertBanner');
+  const head = document.getElementById('alertHead');
+  const sub = document.getElementById('alertSub');
+  const score = document.getElementById('scoreVal');
+
+  if (!isDemoMode) return; // only auto-update in demo mode
+  if (currentPrice >= 3.815 && currentPrice < 3.840) {
+    banner.className = 'alert-banner ab-bull';
+    head.textContent = '🔔 LONG ENTRY TRIGGERED — 5M CHoCH Confirmed';
+    sub.textContent = `Entry: $${currentPrice.toFixed(4)} · TP1: $3.918 · SL: $3.775 · TV alert fired`;
+    score.textContent = '96%'; score.style.color = 'var(--bull)';
+    document.getElementById('sigStatus').textContent = '🟢 ENTRY LIVE';
+    document.getElementById('sigStatus').style.color = 'var(--bull)';
+    document.getElementById('tf5M-badge').textContent = 'TRIGGERED';
+    document.getElementById('tf5M-badge').className = 'tf-badge b-bull';
+    document.getElementById('tf5M').className = 'tf-card tf-bull';
+    document.getElementById('tf5M-dir').textContent = '▲ LONG ENTRY';
+    document.getElementById('tf5M-dir').style.color = 'var(--bull)';
+    document.getElementById('chk-5m').className = 'chk pass';
+    document.getElementById('chk-5m').querySelector('.chk-val').textContent = '✓ CHoCH';
+    document.getElementById('chk-5m').querySelector('.chk-val').style.color = 'var(--bull)';
+  } else if (currentPrice < 3.792) {
+    banner.className = 'alert-banner ab-bear';
+    head.textContent = '⚠ CAUTION — Price below SSL sweep';
+    sub.textContent = `Monitor $3.780 demand — CHoCH may invalidate`;
+    score.textContent = '31%'; score.style.color = 'var(--bear)';
+    document.getElementById('sigStatus').textContent = '🔴 CAUTION';
+    document.getElementById('sigStatus').style.color = 'var(--bear)';
+  } else {
+    banner.className = 'alert-banner ab-warn';
+    head.textContent = 'NEAR ENTRY — Awaiting 5M CHoCH Confirmation';
+    sub.textContent = `Price: $${currentPrice.toFixed(4)} · Watching $3.815 trigger · 5/6 conditions met`;
+    score.textContent = '83%'; score.style.color = 'var(--warn)';
+    document.getElementById('sigStatus').textContent = '⟳ MONITORING';
+    document.getElementById('sigStatus').style.color = 'var(--warn)';
+  }
+}
+
+// ─────────────────────────────────────────────
+// ALERT FEED
+// ─────────────────────────────────────────────
+function addAlertToFeed(alert, isNew = true) {
+  const feed = document.getElementById('alertFeed');
+  const empty = document.getElementById('emptyFeed');
+  if (empty) empty.remove();
+
+  const action = (alert.action || '').toUpperCase();
+  const cls = action === 'LONG' ? 'a-long' : action === 'SHORT' ? 'a-short' : action.startsWith('WATCH') ? 'a-watch' : 'a-info';
+  const time = alert.receivedAt ? new Date(alert.receivedAt).toLocaleTimeString() : new Date().toLocaleTimeString();
+  const price = alert.price ? '$' + parseFloat(alert.price).toFixed(4) : '—';
+
+  const div = document.createElement('div');
+  div.className = `alert-item ${cls}${isNew ? ' new-alert' : ''}`;
+  div.innerHTML = `
+    <div class="alert-item-hdr">
+      <span class="alert-action">${action} ${alert.type || ''}</span>
+      <span class="alert-time">${time}</span>
+    </div>
+    <div class="alert-price">${price}</div>
+    <div class="alert-meta">
+      <span>1D: ${alert.d1Bias || '—'}</span>
+      <span>1H: ${alert.h1Zone || '—'}</span>
+      <span>5M: ${alert.m5Signal || '—'}</span>
+      ${alert.rr ? `<span>R:R 1:${alert.rr}</span>` : ''}
+    </div>
+  `;
+  feed.insertBefore(div, feed.firstChild);
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+
+  alertCount++;
+  document.getElementById('feedCount').textContent = alertCount + ' alerts';
+  document.getElementById('tk-alerts').textContent = alertCount;
+  document.getElementById('tk-alerts2').textContent = alertCount;
+}
+
+// ─────────────────────────────────────────────
+// STATE SYNC FROM SERVER
+// ─────────────────────────────────────────────
+function applyState(state) {
+  if (!state) return;
+  if (state.lastPrice) updatePrice(state.lastPrice);
+  if (state.d1Bias) {
+    document.getElementById('tk-bias').textContent = state.d1Bias;
+    document.getElementById('tk-bias2').textContent = state.d1Bias;
+  }
+  if (state.h1Zone) {
+    document.getElementById('tk-zone').textContent = state.h1Zone;
+  }
+  if (state.m5Signal) {
+    document.getElementById('tk-sig').textContent = state.m5Signal;
+    document.getElementById('mssVal').textContent = state.m5Signal;
+  }
+  if (state.stats) {
+    document.getElementById('st-today').textContent = state.stats.todaySignals || 0;
+    document.getElementById('st-total').textContent = state.stats.totalSignals || 0;
+    document.getElementById('st-ls').textContent = `${state.stats.longSignals||0} / ${state.stats.shortSignals||0}`;
+    document.getElementById('tk-alerts').textContent = state.stats.todaySignals || 0;
+    document.getElementById('tk-alerts2').textContent = state.stats.todaySignals || 0;
+  }
+  if (state.activeSignal) {
+    const sig = state.activeSignal;
+    document.getElementById('tp1Val').textContent = '$' + parseFloat(sig.tp1||0).toFixed(4);
+    document.getElementById('tp2Val').textContent = '$' + parseFloat(sig.tp2||0).toFixed(4);
+    document.getElementById('slVal').textContent  = '$' + parseFloat(sig.sl||0).toFixed(4);
+    document.getElementById('rrVal').textContent  = '1 : ' + (sig.rr || '—');
+  }
+}
+
+function applyAlert(alert) {
+  if (alert.price) updatePrice(alert.price);
+  addAlertToFeed(alert, true);
+  showToast(alert);
+
+  // Update TP/SL if entry signal
+  if ((alert.action === 'LONG' || alert.action === 'SHORT') && alert.type === 'ENTRY') {
+    document.getElementById('tp1Val').textContent = '$' + parseFloat(alert.tp1||0).toFixed(4);
+    document.getElementById('tp2Val').textContent = '$' + parseFloat(alert.tp2||0).toFixed(4);
+    document.getElementById('slVal').textContent  = '$' + parseFloat(alert.sl||0).toFixed(4);
+    document.getElementById('rrVal').textContent  = '1 : ' + (alert.rr || '—');
+
+    // Update banner
+    const banner = document.getElementById('alertBanner');
+    const head = document.getElementById('alertHead');
+    const sub = document.getElementById('alertSub');
+    const score = document.getElementById('scoreVal');
+    if (alert.action === 'LONG') {
+      banner.className = 'alert-banner ab-bull';
+      head.textContent = '🔔 LONG ENTRY TRIGGERED — ' + (alert.m5Signal || 'CHoCH confirmed');
+      sub.textContent = `Entry: $${parseFloat(alert.price).toFixed(4)} · TP1: $${parseFloat(alert.tp1||0).toFixed(4)} · SL: $${parseFloat(alert.sl||0).toFixed(4)}`;
+      score.textContent = '96%'; score.style.color = 'var(--bull)';
+    } else {
+      banner.className = 'alert-banner ab-bear';
+      head.textContent = '🔔 SHORT ENTRY TRIGGERED — ' + (alert.m5Signal || 'CHoCH confirmed');
+      sub.textContent = `Entry: $${parseFloat(alert.price).toFixed(4)} · TP1: $${parseFloat(alert.tp1||0).toFixed(4)} · SL: $${parseFloat(alert.sl||0).toFixed(4)}`;
+      score.textContent = '96%'; score.style.color = 'var(--bear)';
+    }
+    document.getElementById('sigStatus').textContent = '🟢 ENTRY LIVE';
+    document.getElementById('sigStatus').style.color = alert.action === 'LONG' ? 'var(--bull)' : 'var(--bear)';
+  }
+}
+
+// ─────────────────────────────────────────────
+// TOAST NOTIFICATIONS
+// ─────────────────────────────────────────────
+function showToast(alert) {
+  const container = document.getElementById('toastContainer');
+  const action = (alert.action || '').toUpperCase();
+  const cls = action === 'LONG' ? 't-bull' : action === 'SHORT' ? 't-bear' : 't-warn';
+  const icon = action === 'LONG' ? '▲' : action === 'SHORT' ? '▼' : '⚡';
+  const div = document.createElement('div');
+  div.className = `toast ${cls}`;
+  div.innerHTML = `
+    <div class="toast-head">${icon} ${action} ${alert.type || ''} · SUIUSDT</div>
+    <div class="toast-body">Price: $${parseFloat(alert.price||0).toFixed(4)} · ${alert.m5Signal || alert.type || ''}</div>
+  `;
+  container.appendChild(div);
+  setTimeout(() => { div.style.animation = 'slide-out .3s ease forwards'; setTimeout(() => div.remove(), 300); }, 4000);
+}
+
+// ─────────────────────────────────────────────
+// WEBSOCKET CONNECTION
+// ─────────────────────────────────────────────
+function setConnStatus(status) {
+  const dot = document.getElementById('connDot');
+  const text = document.getElementById('connText');
+  const st = document.getElementById('st-conn');
+  const stSub = document.getElementById('st-connSub');
+  if (status === 'connected') {
+    dot.className = 'dot dot-green'; text.textContent = 'LIVE'; text.style.color = 'var(--bull)';
+    st.textContent = 'CONNECTED'; st.style.color = 'var(--bull)'; stSub.textContent = wsUrl;
+  } else if (status === 'connecting') {
+    dot.className = 'dot dot-yellow'; text.textContent = 'CONNECTING'; text.style.color = 'var(--warn)';
+    st.textContent = 'CONNECTING'; st.style.color = 'var(--warn)'; stSub.textContent = wsUrl;
+  } else {
+    dot.className = 'dot dot-red'; text.textContent = 'OFFLINE'; text.style.color = 'var(--t2)';
+    st.textContent = 'OFFLINE'; st.style.color = 'var(--bear)'; stSub.textContent = 'No server connection';
+  }
+}
+
+function connectWS(url) {
+  if (ws) { ws.close(); ws = null; }
+  wsUrl = url || wsUrl;
+  setConnStatus('connecting');
+  try {
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+      setConnStatus('connected');
+      showToast({ action: 'INFO', type: 'Connected to server', price: currentPrice });
+    };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.event === 'SNAPSHOT') {
+          applyState(msg.data.state);
+          (msg.data.alerts || []).reverse().forEach(a => addAlertToFeed(a, false));
+        } else if (msg.event === 'ALERT') {
+          applyAlert(msg.data);
+        } else if (msg.event === 'STATE' || msg.event === 'HEARTBEAT') {
+          applyState(msg.data.state || msg.data);
+          if (msg.data.clients) document.getElementById('tk-clients').textContent = msg.data.clients;
+        }
+      } catch {}
+    };
+    ws.onclose = () => { setConnStatus('disconnected'); ws = null; };
+    ws.onerror = () => { setConnStatus('disconnected'); };
+  } catch(e) { setConnStatus('disconnected'); }
+}
+
+function toggleConn() {
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.close(); } else { connectWS(); }
+}
+
+function connectServer() {
+  const url = document.getElementById('wsUrlInput').value.trim();
+  if (url) wsUrl = url;
+  document.getElementById('serverUrlBar').value = wsUrl;
+  document.getElementById('setupModal').classList.add('hidden');
+  isDemoMode = false;
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+  connectWS(wsUrl);
+}
+
+// ─────────────────────────────────────────────
+// DEMO MODE
+// ─────────────────────────────────────────────
+function demoMode() {
+  document.getElementById('setupModal').classList.add('hidden');
+  isDemoMode = true;
+  setConnStatus('connected');
+  document.getElementById('connText').textContent = 'DEMO';
+
+  updatePrice(3.8240);
+
+  let tick = 0;
+  demoTimer = setInterval(() => {
+    tick++;
+    const change = (Math.random() - 0.48) * 0.004;
+    currentPrice = Math.max(3.75, Math.min(3.96, currentPrice + change));
+    updatePrice(currentPrice);
+    if (tick % 8 === 0) buildChart(currentChartTF);
+  }, 1200);
+
+  // Fire demo alerts every ~20s
+  const demoAlerts = [
+    { action: 'WATCH_LONG', type: 'NEAR_ENTRY', price: 3.8050, '1d_bias': 'BULLISH', '1h_ob': 'DEMAND', '5m_signal': 'PENDING', receivedAt: new Date().toISOString() },
+    { action: 'LONG', type: 'ENTRY', price: 3.8150, sl: 3.775, tp1: 3.918, tp2: 4.060, '1d_bias': 'BULLISH', '1h_ob': 'DEMAND', '5m_signal': 'CHoCH_BULL', rr: '3.2', receivedAt: new Date().toISOString() },
+    { action: 'INFO', type: 'BOS', price: 3.8600, '1d_bias': 'BULLISH', '1h_ob': 'DEMAND', '5m_signal': 'BOS_BULL', receivedAt: new Date().toISOString() },
+  ];
+  let ai = 0;
+  setInterval(() => {
+    const a = { ...demoAlerts[ai % demoAlerts.length], price: currentPrice.toFixed(4), receivedAt: new Date().toISOString() };
+    addAlertToFeed(a, true);
+    showToast(a);
+    applyState({ stats: { todaySignals: ++alertCount, totalSignals: alertCount, longSignals: Math.floor(alertCount*.6), shortSignals: Math.floor(alertCount*.4) } });
+    ai++;
+  }, 18000);
+}
+
+// ─────────────────────────────────────────────
+// TEST ALERT (fire against real server)
+// ─────────────────────────────────────────────
+function fireTestAlert() {
+  if (isDemoMode) {
+    const a = { action: 'LONG', type: 'ENTRY', price: currentPrice.toFixed(4), sl: '3.775', tp1: '3.918', tp2: '4.060', '1d_bias': 'BULLISH', '1h_ob': 'DEMAND', '5m_signal': 'CHoCH_BULL', rr: '3.5', receivedAt: new Date().toISOString() };
+    applyAlert(a);
+    return;
+  }
+  const serverBase = wsUrl.replace('ws://', 'http://').replace('wss://', 'https://').replace('/ws', '');
+  fetch(serverBase + '/test-alert', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json()).then(d => console.log('[TEST]', d)).catch(e => showToast({ action: 'ERROR', type: 'Server not reachable', price: 0 }));
+}
+
+// ─────────────────────────────────────────────
+// WSURL INPUT SYNC
+// ─────────────────────────────────────────────
+document.getElementById('serverUrlBar').addEventListener('change', e => { wsUrl = e.target.value; document.getElementById('wsUrlInput').value = wsUrl; });
+document.getElementById('wsUrlInput').addEventListener('input', e => {
+  const u = e.target.value.replace('http://', 'ws://').replace('https://', 'wss://');
+  const webhookUrl = u.replace('ws://', 'http://').replace('wss://', 'https://').replace('/ws', '') + '/webhook?secret=sui_smc_secret_2024';
+  document.getElementById('tvWebhookDisplay').innerHTML = webhookUrl.replace('sui_smc_secret_2024', '<span class="hl">sui_smc_secret_2024</span>');
+});
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+buildChart('5M');
+// show setup modal on load (already visible via HTML)
+</script>
+</body>
+</html>
