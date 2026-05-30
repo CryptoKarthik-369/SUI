@@ -1,2 +1,2 @@
-# SUI-
+# SUI
 SUI Setup Monitor
